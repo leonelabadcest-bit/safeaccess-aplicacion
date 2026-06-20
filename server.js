@@ -8,8 +8,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Servir archivos estáticos (el HTML)
-app.use(express.static(__dirname));
+// Servir únicamente los archivos requeridos por el frontend para mayor seguridad (evita exponer historial.db, server.js y otros archivos internos)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+app.get('/style.css', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style.css'));
+});
+app.get('/script.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'script.js'));
+});
+app.get('/config.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'config.js'));
+});
+app.get('/manifest.json', (req, res) => {
+    res.sendFile(path.join(__dirname, 'manifest.json'));
+});
+app.get('/service-worker.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'service-worker.js'));
+});
 
 // 1. Conectar/Crear la base de datos SQLite
 const db = new sqlite3.Database('./historial.db', (err) => {
@@ -29,11 +49,6 @@ const USUARIOS_VALIDOS = {
     "5678": "Anna Gómez",
     "9012": "Admin SafeAccess"
 };
-
-// RUTA: Servir el index.html en la raíz
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 // RUTA: Validar usuario e iniciar acción
 app.post('/api/autenticar', (req, res) => {
