@@ -21,6 +21,7 @@ const toggleUI = (isLogged) => {
     ui.info.classList.toggle('hidden', !isLogged);
     if (isLogged) {
         ui.user.innerText = currentUser.nombre;
+        actualizarBotonesUI();
         setTimeout(init3D, 500); // Inicializar 3D después de que la UI sea visible
     }
 };
@@ -29,6 +30,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('safeAccessUser');
     if (saved) { currentUser = JSON.parse(saved); toggleUI(true); }
     actualizarHistorialUI();
+
+    // Registrar Service Worker para habilitar el soporte offline (PWA)
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => console.log('Service Worker registrado con éxito:', reg))
+            .catch(err => console.error('Error al registrar el Service Worker:', err));
+    }
 });
 
 async function login() {
@@ -86,42 +94,64 @@ function init3D() {
 function crearCasa() {
     const houseGroup = new THREE.Group();
 
-    // Paredes (Beige/Crema)
-    const wallMat = new THREE.MeshPhongMaterial({ color: 0xf5f5dc });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(4, 2.5, 4), wallMat);
-    body.position.y = 1.25;
-    houseGroup.add(body);
+    // Materiales
+    const stoneMat = new THREE.MeshPhongMaterial({ color: 0x94a3b8 }); // Gris piedra
+    const roofMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a }); // Negro/Oscuro
+    const windowMat = new THREE.MeshPhongMaterial({ color: 0x87ceeb, transparent: true, opacity: 0.6 });
+    const garageMat = new THREE.MeshPhongMaterial({ color: 0x2d3748 });
 
-    // Techo (Verde Esmeralda - como la foto)
-    const roofMat = new THREE.MeshPhongMaterial({ color: 0x10b981, side: THREE.DoubleSide });
-    const roofGeom = new THREE.ConeGeometry(3.5, 2, 4);
-    const roof = new THREE.Mesh(roofGeom, roofMat);
-    roof.position.y = 3.5;
-    roof.rotation.y = Math.PI / 4;
-    houseGroup.add(roof);
+    // Primer Piso (Base)
+    const firstFloor = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 4), stoneMat);
+    firstFloor.position.y = 1.25;
+    houseGroup.add(firstFloor);
+
+    // Segundo Piso
+    const secondFloor = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 3.5), stoneMat);
+    secondFloor.position.set(-1, 3.5, 0);
+    houseGroup.add(secondFloor);
+
+    // Techos (Varios niveles para estilo lujoso)
+    const roof1 = new THREE.Mesh(new THREE.ConeGeometry(4.5, 2, 4), roofMat);
+    roof1.position.set(-1, 5, 0);
+    roof1.rotation.y = Math.PI / 4;
+    houseGroup.add(roof1);
+
+    const roof2 = new THREE.Mesh(new THREE.ConeGeometry(3, 1.5, 4), roofMat);
+    roof2.position.set(2, 3, 0);
+    roof2.rotation.y = Math.PI / 4;
+    houseGroup.add(roof2);
+
+    // Garajes (Simulados)
+    const garage1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.1), garageMat);
+    garage1.position.set(1.8, 0.75, 2);
+    houseGroup.add(garage1);
+    const garage2 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.1), garageMat);
+    garage2.position.set(0.4, 0.75, 2);
+    houseGroup.add(garage2);
 
     // Suelo / Base
     const floorMat = new THREE.MeshPhongMaterial({ color: 0x1e293b });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), floorMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(15, 15), floorMat);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // Puerta Principal (Frontal)
+    // Puerta Principal (A la izquierda de los garajes)
     mainDoorGroup = new THREE.Group();
-    const doorMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6 });
+    const doorMat = new THREE.MeshPhongMaterial({ color: 0x4a5568 });
     const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.1), doorMat);
-    doorMesh.position.set(0.4, 0.9, 0); // Desplazar para que el pivote sea el borde
+    doorMesh.position.set(0.4, 0.9, 0); 
     mainDoorGroup.add(doorMesh);
-    mainDoorGroup.position.set(-0.4, 0, 2);
+    mainDoorGroup.position.set(-1.5, 0, 2);
     houseGroup.add(mainDoorGroup);
 
-    // Puerta Trasera (Posterior)
+    // Puerta Trasera (En el lateral o posterior)
     backDoorGroup = new THREE.Group();
-    const backDoorMat = new THREE.MeshPhongMaterial({ color: 0x8b5cf6 });
+    const backDoorMat = new THREE.MeshPhongMaterial({ color: 0x4a5568 });
     const backDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.1), backDoorMat);
     backDoorMesh.position.set(-0.4, 0.9, 0); 
     backDoorGroup.add(backDoorMesh);
-    backDoorGroup.position.set(0.4, 0, -2);
+    backDoorGroup.position.set(2.9, 0, 0);
+    backDoorGroup.rotation.y = Math.PI / 2;
     houseGroup.add(backDoorGroup);
 
     scene.add(houseGroup);
@@ -129,9 +159,10 @@ function crearCasa() {
 
 function animate() {
     requestAnimationFrame(animate);
+    if (!currentUser) return; // Optimización: no consumir recursos de GPU/CPU si la sesión no está activa
     controls.update();
 
-    // Animación suave de las puertas (lerp)
+    // Animación suave de las puertas
     mainDoorGroup.rotation.y += (targetRotationMain - mainDoorGroup.rotation.y) * 0.1;
     backDoorGroup.rotation.y += (targetRotationBack - backDoorGroup.rotation.y) * 0.1;
 
@@ -140,16 +171,26 @@ function animate() {
 
 // --- Lógica de Control y Bluetooth ---
 async function connectBLE() {
-    if (!navigator.bluetooth) return alert("Bluetooth no compatible.");
+    if (!navigator.bluetooth) {
+        alert("Bluetooth no compatible en este navegador.");
+        return false;
+    }
     try {
-        bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ name: 'SafeAccess_IoT_Door' }], optionalServices: [SERVICE_UUID] });
+        console.log("Solicitando dispositivo Bluetooth...");
+        bleDevice = await navigator.bluetooth.requestDevice({ 
+            filters: [{ name: 'SafeAccess_IoT_Door' }], 
+            optionalServices: [SERVICE_UUID] 
+        });
+        
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
         const server = await bleDevice.gatt.connect();
         const service = await server.getPrimaryService(SERVICE_UUID);
         bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        
         ui.dot.className = "w-2 h-2 rounded-full bg-green-500";
         document.querySelector('#connectionStatus span').innerText = "Conectado";
-        actualizarBotonesUI(); return true;
+        actualizarBotonesUI(); 
+        return true;
     } catch (e) { 
         console.error("Error BLE:", e);
         return false; 
@@ -174,6 +215,15 @@ function actualizarBotonesUI() {
 
 async function handleAction(type) {
     if (!currentUser) return;
+
+    // Intentar conectar si no está conectado (Web Bluetooth requiere gesto de usuario, que es este click)
+    if (!bleDevice?.gatt?.connected) {
+        const conectado = await connectBLE();
+        if (!conectado) {
+            // Si el usuario cancela o falla, igual permitimos la simulación 3D
+            console.log("No se pudo conectar al hardware, ejecutando solo simulación.");
+        }
+    }
     
     // Cambiar estado local (Simulación)
     doors[type] = !doors[type];
@@ -199,6 +249,7 @@ async function handleAction(type) {
         try {
             const cmd = type === 'main' ? (doors.main ? 'A' : 'C') : (doors.back ? 'B' : 'D');
             await bleCharacteristic.writeValue(new TextEncoder().encode(cmd));
+            console.log(`Comando '${cmd}' enviado al ESP32.`);
         } catch (e) { console.error("Error hardware:", e); }
     }
 
